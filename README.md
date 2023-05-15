@@ -29,7 +29,7 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
 
 Definitions:
 - WordSeparator is any glyph that is not a letter, number or one of two apostrophes '’
-- CapitalWord is a word where every letter is uppercase and it's bounded by a WordSeparator on both sides
+- CapitalWord is a word where every letter is uppercase and it's bounded by a WordSeparator on both sides, or end of text
 
 Decoding:
 - The C characterToken makes the following 1 UTF8 glyph uppercase
