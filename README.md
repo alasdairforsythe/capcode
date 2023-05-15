@@ -9,7 +9,7 @@ go mod tidy
 go build capcode.go
 ```
 
-## Examples:
+### Examples:
 ```
 The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
 ```
@@ -17,7 +17,7 @@ The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
 Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
 ```
 
-## Features
+### Features
 
 - UTF-8 compliant: supports uppercase and titlecase glpyhs
 - No information is lost
@@ -25,7 +25,7 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
 - Extremely fast: no regular expressions, only 1 loop of the text
 - Safe: an LLM trained on this will still understand about uppercasing
 
-## Formula
+### Formula
 
 Definitions:
 - WordSeparator is any glyph that is not a letter, number or one of two apostrophes '’
