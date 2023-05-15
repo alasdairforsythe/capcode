@@ -39,9 +39,9 @@ Decoding:
 
 Encoding:
 - Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
-- 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. The Quick Brown -> Sthe quick brownE
-- 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. The Quick -> Wthe Wquick
-- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between
+- 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
+- 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
+- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
 - If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordTOken, e.g. teST -> teWst, tesT -> tesWt
 - Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
