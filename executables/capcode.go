@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"github.com/alasdairforsythe/capcode/go@latest"
+	"github.com/alasdairforsythe/capcode/go"
 )
 
 func main() {
@@ -112,13 +112,13 @@ func processFile(from string, to string, decode bool) error {
 	}
 
 	if decode {
-		err := DecodeFile(from, to)
+		err := capcode.DecodeFile(from, to)
 		if err != nil {
 			return err
 		}
 		fmt.Println(`Decoded:`, from)
 	} else {
-		err := EncodeFile(from, to)
+		err := capcode.EncodeFile(from, to)
 		if err != nil {
 			return err
 		}
@@ -148,17 +148,5 @@ func processAllFiles(directory string, decode bool) error {
 		}
 	}
 
-	return nil
-}
-
-func EncodeFile(from string, to string) error {
-	// Implement the encoding logic here
-	// ...
-	return nil
-}
-
-func DecodeFile(from string, to string) error {
-	// Implement the decoding logic here
-	// ...
 	return nil
 }

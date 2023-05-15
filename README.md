@@ -2,8 +2,9 @@
 Lossless normalization of uppercase characters.
 Currently only in Go, but in "executables" directory is a command line tool. You can compile it as follows:
 ```
-git clone https://github.com/alasdairforsythe/capcode/executables
-go mod init
+git clone https://github.com/alasdairforsythe/capcode
+cd capcode/executables
+go mod init capcode
 go mod tidy
 go build capcode.go
 ```
