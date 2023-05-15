@@ -9,7 +9,7 @@ go mod tidy
 go build capcode.go
 ```
 
-## Examples:
+### Examples:
 ```
 The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
 ```
@@ -17,7 +17,7 @@ The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
 Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
 ```
 
-## Features
+### Features
 
 - UTF-8 compliant: supports uppercase and titlecase glpyhs
 - No information is lost
@@ -25,11 +25,11 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
 - Extremely fast: no regular expressions, only 1 loop of the text
 - Safe: an LLM trained on this will still understand about uppercasing
 
-## Formula
+### Formula
 
 Definitions:
 - WordSeparator is any glyph that is not a letter, number or one of two apostrophes '’
-- CapitalWord is a word where every letter is uppercase and it's bounded by a WordSeparator on both sides
+- CapitalWord is a word where every letter is uppercase and it's bounded by a WordSeparator on both sides, or end of text
 
 Decoding:
 - The C characterToken makes the following 1 UTF8 glyph uppercase
@@ -39,9 +39,9 @@ Decoding:
 
 Encoding:
 - Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
-- 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. The Quick Brown -> Sthe quick brownE
-- 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. The Quick -> Wthe Wquick
-- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between
+- 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
+- 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
+- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
 - If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordTOken, e.g. teST -> teWst, tesT -> tesWt
 - Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
