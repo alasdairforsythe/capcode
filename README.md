@@ -11,10 +11,10 @@ go build capcode.go
 
 ### Examples:
 ```
-The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
+The QUICK BROWN FOX Jumped over the LAZY dog. NextOne. THANK YOU!
 ```
 ```
-Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
+Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 ```
 
 ### Features
