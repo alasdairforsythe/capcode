@@ -195,8 +195,8 @@ func (w *Writer) Write(data []byte) (int, error) {
 }
 
 func Encode(data []byte) []byte {
-	l := (len(data) + (len(data)/4))) + bufferReserve
-	e := Encoder{buf: make([]byte, l}
+	l := len(data) + (len(data)/4) + bufferReserve
+	e := Encoder{buf: make([]byte, l)}
 	var i, at int
 	var eof bool
 	for {
@@ -237,11 +237,10 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
-								if pos >= len(buf) {
+								if e.pos >= len(e.buf) {
 									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(buf) + (len(buf) / 4))
-									copy(newbuf, buf)
-									buf = newbuf
+									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
+									copy(newbuf, e.buf)
 									e.buf = newbuf
 								}
 							}
@@ -263,11 +262,10 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
-								if pos >= len(buf) {
+								if e.pos >= len(e.buf) {
 									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(buf) + (len(buf) / 4))
-									copy(newbuf, buf)
-									buf = newbuf
+									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
+									copy(newbuf, e.buf)
 									e.buf = newbuf
 								}
 							}
@@ -292,11 +290,10 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
-								if pos >= len(buf) {
+								if e.pos >= len(e.buf) {
 									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(buf) + (len(buf) / 4))
-									copy(newbuf, buf)
-									buf = newbuf
+									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
+									copy(newbuf, e.buf)
 									e.buf = newbuf
 								}
 							}
@@ -321,11 +318,10 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
-								if pos >= len(buf) {
+								if e.pos >= len(e.buf) {
 									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(buf) + (len(buf) / 4))
-									copy(newbuf, buf)
-									buf = newbuf
+									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
+									copy(newbuf, e.buf)
 									e.buf = newbuf
 								}
 							}
