@@ -107,7 +107,7 @@ func processFile(from string, to string, decode bool) error {
 		if decode {
 			to = from + ".decoded"
 		} else {
-			to = from + ".toknorm"
+			to = from + ".capcode"
 		}
 	}
 
@@ -137,7 +137,7 @@ func processAllFiles(directory string, decode bool) error {
 	for _, file := range files {
 		if !file.IsDir() {
 			from := filepath.Join(directory, file.Name())
-			to := from + ".toknorm"
+			to := from + ".capcode"
 			if decode {
 				to = from + ".decoded"
 			}

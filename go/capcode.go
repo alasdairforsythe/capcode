@@ -68,6 +68,7 @@ type Writer struct {
 	w	io.Writer
 	e	Encoder
 	cursor int
+	closed bool
 }
 
 func EncodeFile(from string, to string) error {
@@ -143,6 +144,10 @@ func NewWriter(f io.Writer) *Writer {
 
 // Close will force a flush even if its inside a sequence of capitals, it will still be valid but the sequence will begin with startToken instead of another
 func (w *Writer) Close() (err error) {
+	if w.closed {
+		return nil
+	}
+	w.closed = true
 	w.e.end()
 	if w.e.pos - w.cursor > 0 {
 		_, err = w.w.Write(w.e.buf[w.cursor:w.e.pos])
@@ -181,10 +186,9 @@ func (w *Writer) Write(data []byte) (int, error) {
 			copy(w.e.buf, w.e.buf[pos:w.e.pos])
 			w.e.pos -= pos
 			w.e.capStartPos = 0
+			w.e.secondCapStartPos -= pos
+			w.e.lastWordCapEndPos -= pos
 			w.e.capEndPos -= pos
-			if w.e.capEndPos < 0 {
-				w.e.capEndPos = 0
-			}
 			at += i
 			if err != nil {
 				return at, err
