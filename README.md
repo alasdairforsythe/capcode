@@ -11,10 +11,10 @@ go build capcode.go
 
 ### Examples:
 ```
-The QUICK BROWN FOX Jumped over the LAZY dog. CamelCase. THANK YOU!
+The QUICK BROWN FOX Jumped over the LAZY dog. NextOne. THANK YOU!
 ```
 ```
-Cthe Bquick brown foxE Cjumped over the Wlazy dog. CcamelCase. Wthank Wyou!
+Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 ```
 
 ### Features
@@ -33,7 +33,7 @@ Definitions:
 
 Decoding:
 - The C characterToken makes the following 1 UTF8 glyph uppercase
-- The T titleToken makes the following UTF8 glyph titlecase (for special glphs that have distinct uppercase & titlecase)
+- The T titleToken makes the following 1 UTF8 glyph titlecase (for special glphs that have distinct uppercase & titlecase)
 - The W wordToken makes all characters following this uppercase until a WordSeparator reached
 - The S startToken makes all glyphs uppercase until the next E endToken
 
@@ -42,10 +42,10 @@ Encoding:
 - 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
 - 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
 - If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
-- If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordTOken, e.g. teST -> teWst, tesT -> tesWt
+- If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordToken, e.g. teST -> teWst, tesT -> tesWt
 - Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
 Notes:
 - Titlecase glyphs are always proceeded by T titleToken, and are otherwise unrelated to the rules for the uppercase
 - C characterToken never occurs before the last character in a word, in that case W wordToken is used
-- E EndToken never occurs in the middle of a word, while s StartToken may occur in the middle of a word
+- E endToken never occurs in the middle of a word, while S startToken may occur in the middle of a word
