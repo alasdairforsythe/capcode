@@ -49,6 +49,7 @@ const (
 	apostrophe2    = '’'
 	bufferLen      = 20480
 	glyphMaxLen	   = 4
+	bufferReserve  = 32
 )
 
 var pool = sync.Pool{
@@ -194,7 +195,8 @@ func (w *Writer) Write(data []byte) (int, error) {
 }
 
 func Encode(data []byte) []byte {
-	e := Encoder{buf: make([]byte, len(data) + (len(data)/4))}
+	l := (len(data) + (len(data)/4))) + bufferReserve
+	e := Encoder{buf: make([]byte, l}
 	var i, at int
 	var eof bool
 	for {
@@ -235,6 +237,13 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
+								if pos >= len(buf) {
+									// no choice but to grow the buffer because we need to lookback
+									newbuf := make([]byte, len(buf) + (len(buf) / 4))
+									copy(newbuf, buf)
+									buf = newbuf
+									e.buf = newbuf
+								}
 							}
 						}
 					}
@@ -254,6 +263,13 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
+								if pos >= len(buf) {
+									// no choice but to grow the buffer because we need to lookback
+									newbuf := make([]byte, len(buf) + (len(buf) / 4))
+									copy(newbuf, buf)
+									buf = newbuf
+									e.buf = newbuf
+								}
 							}
 						}
 					}
@@ -276,6 +292,13 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
+								if pos >= len(buf) {
+									// no choice but to grow the buffer because we need to lookback
+									newbuf := make([]byte, len(buf) + (len(buf) / 4))
+									copy(newbuf, buf)
+									buf = newbuf
+									e.buf = newbuf
+								}
 							}
 						}
 					}
@@ -298,6 +321,13 @@ func (e *Encoder) end() { // this may use 1 character but there is always 1 char
 								e.pos++
 								e.capEndPos++
 								i2++
+								if pos >= len(buf) {
+									// no choice but to grow the buffer because we need to lookback
+									newbuf := make([]byte, len(buf) + (len(buf) / 4))
+									copy(newbuf, buf)
+									buf = newbuf
+									e.buf = newbuf
+								}
 							}
 						}
 					}
@@ -322,13 +352,13 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 	var singleLetter bool = e.singleLetter
 	var inWord bool = e.inWord
 	var buf []byte = e.buf
-	var dangerZone int = len(buf) - 1 // reserve 1 character for the endToken
+	var dangerZone int = len(buf) - bufferReserve // reserve buffer space for modifications
 
 	for i=0; i < len(data); i += n {
 		r, n = utf8.DecodeRune(data[i:]) // get the next rune
 
 		// Check there is enough space in the buffer
-		if pos + n > dangerZone {
+		if pos + n >= dangerZone {
 			e.pos = pos
 			e.capStartPos = capStartPos
 			e.secondCapStartPos = secondCapStartPos
@@ -376,6 +406,14 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 											pos++
 											capEndPos++
 											i2++
+											if pos >= len(buf) {
+												// no choice but to grow the buffer because we need to lookback
+												newbuf := make([]byte, len(buf) * 2)
+												copy(newbuf, buf)
+												buf = newbuf
+												e.buf = newbuf
+												dangerZone = len(buf) - bufferReserve
+											}
 										}
 									}
 								}
@@ -395,6 +433,14 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 											pos++
 											capEndPos++
 											i2++
+											if pos >= len(buf) {
+												// no choice but to grow the buffer because we need to lookback
+												newbuf := make([]byte, len(buf) * 2)
+												copy(newbuf, buf)
+												buf = newbuf
+												e.buf = newbuf
+												dangerZone = len(buf) - bufferReserve
+											}
 										}
 									}
 								}
@@ -417,6 +463,14 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 											pos++
 											capEndPos++
 											i2++
+											if pos >= len(buf) {
+												// no choice but to grow the buffer because we need to lookback
+												newbuf := make([]byte, len(buf) * 2)
+												copy(newbuf, buf)
+												buf = newbuf
+												e.buf = newbuf
+												dangerZone = len(buf) - bufferReserve
+											}
 										}
 									}
 								}
@@ -439,6 +493,14 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 											pos++
 											capEndPos++
 											i2++
+											if pos >= len(buf) {
+												// no choice but to grow the buffer because we need to lookback
+												newbuf := make([]byte, len(buf) * 2)
+												copy(newbuf, buf)
+												buf = newbuf
+												e.buf = newbuf
+												dangerZone = len(buf) - bufferReserve
+											}
 										}
 									}
 								}
