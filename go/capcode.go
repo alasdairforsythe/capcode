@@ -219,7 +219,7 @@ func Encode(data []byte) []byte {
 func (e *Encoder) end() { // this may use 1 character but there is always 1 character reserved so it doesn't check
 	if e.inCaps {
 		e.inWord = false
-		e.capEndPos = e.pos // it ends at the end
+		//e.capEndPos = e.pos // it ends at the end
 		var r2 rune
 		var n2 int
 		if e.singleLetter && e.inWord { // only 1 letter is capitalized
@@ -395,7 +395,7 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 							case 0:
 								if !inWord { // it's a single capital word, followed by space and then lowercase letter
 									buf[capStartPos] = wordToken
-								} else { // it's 2 or more capital letter immediately, followed by a lowercase, e.g. TEst
+								} else { // it's 2 or more capital letters immediately, followed by a lowercase, e.g. TEst
 									// go back and put C in front of all of the letters
 									buf[capStartPos] = characterToken
 									for i2=capStartPos+n2+1; i2<capEndPos; i2+=n2 {
@@ -424,7 +424,7 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 									buf[secondCapStartPos] = wordToken // inject the wordToken in front of the second word
 									pos++
 								} else { // There's one word all in caps, and then another word beginning with caps, but not all caps
-									// The second word should have all uppercase letter marked with characterToken
+									// The second word should have all uppercase letters marked with characterToken
 									for i2=secondCapStartPos; i2<capEndPos; i2+=n2 {
 										r2, n2 = utf8.DecodeRune(buf[i2:])
 										if unicode.IsLetter(r2) {
@@ -551,17 +551,43 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 	return i, true // all of data was written
 }
 
+// Checks the last byte is not a token
+func isToken(chr byte) bool {
+	switch chr {
+		case characterToken:
+		case wordToken:
+		case titleToken:
+		case startToken:
+		case endToken:
+			return true
+		default:
+			return false
+	}
+}
+
 // Decodes the bytes into the same slice
 func Decode(data []byte) []byte {
 	return DecodeFrom(data, data)
 }
 
 func DecodeFrom(destination []byte, source []byte) []byte {
-	var i, n, pos int
+	var i, n, pos, l int
 	var r rune
 	var inCaps bool
 
-	for ; i < len(source); i += n {
+	// If the last character is a token, ignore it
+	switch source[len(source) - 1] {
+		case characterToken:
+		case wordToken:
+		case titleToken:
+		case startToken:
+		case endToken:
+			l = len(source) - 1
+		default:
+			l = len(source)
+	}
+
+	for ; i < l; i += n {
 		r, n = utf8.DecodeRune(source[i:]) // get the next rune
 		switch r {
 			case 'T':
@@ -573,7 +599,7 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 				r, n = utf8.DecodeRune(source[i:])
 				pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
 			case 'W':
-				for i+=n; i<len(source); i+=n {
+				for i+=n; i<l; i+=n {
 					r, n = utf8.DecodeRune(source[i:])
 					if unicode.IsLetter(r) {
 						pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
