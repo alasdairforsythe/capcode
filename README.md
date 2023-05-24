@@ -41,11 +41,11 @@ Encoding:
 - Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
 - 3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
 - 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
-- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
+- If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. tHE QUICK BROWN -> tShe quick brownE
 - If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordToken, e.g. teST -> teWst, tesT -> tesWt
 - Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
 Notes:
 - Titlecase glyphs are always proceeded by T titleToken, and are otherwise unrelated to the rules for the uppercase
-- C characterToken never occurs before the last character in a word, in that case W wordToken is used
+- C characterToken never occurs before the last character in a word, in that case W wordToken is used (W uppercases all characters from here until the end of the word)
 - E endToken never occurs in the middle of a word, while S startToken may occur in the middle of a word
