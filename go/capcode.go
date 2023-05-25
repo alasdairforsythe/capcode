@@ -455,20 +455,6 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 	return i, true // all of data was written
 }
 
-// Checks the last byte is not a token
-func isToken(chr byte) bool {
-	switch chr {
-		case characterToken:
-		case wordToken:
-		case titleToken:
-		case beginToken:
-		case endToken:
-			return true
-		default:
-			return false
-	}
-}
-
 // Decodes the bytes into the same slice
 func Decode(data []byte) []byte {
 	return DecodeFrom(data, data)
