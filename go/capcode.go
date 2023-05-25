@@ -14,20 +14,20 @@ package capcode
 		The C characterToken makes the following 1 UTF8 glyph uppercase
 		The T titleToken makes the following UTF8 glyph titlecase (for special glphs that have distinct uppercase & titlecase)
 		The W wordToken makes all characters following this uppercase until a WordSeparator reached
-		The S startToken makes all glyphs uppercase until the next E endToken
+		The B beginToken makes all glyphs uppercase until the next E endToken
 
 	Encoding:
 		Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
-		3 or more CapitalWords in sequence are lowercased and begin with S startToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
+		3 or more CapitalWords in sequence are lowercased and begin with S beginToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
 		1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
-		If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S startToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
+		If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S beginToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
 		If 1 or more letters at the end of a word are uppercased, the uppercased letters are lowercased and proceeded by W wordTOken, e.g. teST -> teWst, tesT -> tesWt
 		Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
 	Notes:
 		Titlecase glyphs are always proceeded by T titleToken, and are otherwise unrelated to the rules for the uppercase
 		C characterToken never occurs before the last character in a word, in that case W wordToken is used
-		E EndToken never occurs in the middle of a word, while s StartToken may occur in the middle of a word
+		E EndToken never occurs in the middle of a word, while s beginToken may occur in the middle of a word
 
 */
 
@@ -43,7 +43,7 @@ const (
 	characterToken = 'C'
 	wordToken      = 'W'
 	titleToken     = 'T'
-	startToken     = 'S'
+	beginToken     = 'B'
 	endToken       = 'E'
 	apostrophe	   = '\''
 	apostrophe2    = '’'
@@ -56,6 +56,10 @@ var pool = sync.Pool{
     New: func() interface{} {
         return make([]byte, bufferLen)
     },
+}
+
+func isModifier(r rune) bool {
+	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || unicode.Is(unicode.Me, r)
 }
 
 type Encoder struct {
@@ -142,7 +146,7 @@ func NewWriter(f io.Writer) *Writer {
 	return &Writer{w: f, e: Encoder{buf: pool.Get().([]byte)}}
 }
 
-// Close will force a flush even if its inside a sequence of capitals, it will still be valid but the sequence will begin with startToken instead of another
+// Close will force a flush even if its inside a sequence of capitals, it will still be valid but the sequence will begin with beginToken instead of another
 func (w *Writer) Close() (err error) {
 	if w.closed {
 		return nil
@@ -218,130 +222,28 @@ func Encode(data []byte) []byte {
 
 func (e *Encoder) end() { // this may use 1 character but there is always 1 character reserved so it doesn't check
 	if e.inCaps {
-		e.inWord = false
-		//e.capEndPos = e.pos // it ends at the end
-		var r2 rune
-		var n2 int
-		if e.singleLetter && e.inWord { // only 1 letter is capitalized
-			e.buf[e.capStartPos] = characterToken
-		} else { // >1 capitals in the run
-			switch e.nWords {
-				case 0:
-					if !e.inWord { // it's a single capital word, followed by space and then lowercase letter
-						e.buf[e.capStartPos] = wordToken
-					} else { // it's 2 or more capital letter immediately, followed by a lowercase, e.g. TEst
-						// go back and put C in front of all of the letters
-						e.buf[e.capStartPos] = characterToken
-						r2, n2 = utf8.DecodeRune(e.buf[e.capStartPos:])
-						for i2:=e.capStartPos+n2+1; i2<e.capEndPos; i2+=n2 {
-							r2, n2 = utf8.DecodeRune(e.buf[i2:])
-							if unicode.IsLetter(r2) {
-								copy(e.buf[i2+1:e.pos+1], e.buf[i2:e.pos])
-								e.buf[i2] = characterToken
-								e.pos++
-								e.capEndPos++
-								i2++
-								if e.pos >= len(e.buf) {
-									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
-									copy(newbuf, e.buf)
-									e.buf = newbuf
-								}
-							}
-						}
-					}
-				case 1: // the first word is all in caps
-					e.buf[e.capStartPos] = wordToken // replace the startToken with wordToken on the first word
-					if !e.inWord { // There are two capital words in a row, then space and then lowercase letters
-						copy(e.buf[e.secondCapStartPos+1:e.pos+1], e.buf[e.secondCapStartPos:e.pos]) // make room for the wordToken in front of the second word
-						e.buf[e.secondCapStartPos] = wordToken // inject the wordToken in front of the second word
-						e.pos++
-					} else { // There's one word all in caps, and then another word beginning with caps, but not all caps
-						// The second word should have all uppercase letter marked with characterToken
-						for i2:=e.secondCapStartPos; i2<e.capEndPos; i2+=n2 {
-							r2, n2 = utf8.DecodeRune(e.buf[i2:])
-							if unicode.IsLetter(r2) {
-								copy(e.buf[i2+1:e.pos+1], e.buf[i2:e.pos])
-								e.buf[i2] = characterToken
-								e.pos++
-								e.capEndPos++
-								i2++
-								if e.pos >= len(e.buf) {
-									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
-									copy(newbuf, e.buf)
-									e.buf = newbuf
-								}
-							}
-						}
-					}
-				case 2:
-					if !e.inWord { // 3 words in a row, all capitals
-						copy(e.buf[e.capEndPos+1:e.pos+1], e.buf[e.capEndPos:e.pos]) // make room for the endToken after the last seen capital letter
-						e.buf[e.capEndPos] = endToken // inject the endToken
-						e.pos++
-					 } else { // 2 capital words in a row, then a word beginning with capitals but not all capitals
-						e.buf[e.capStartPos] = wordToken // replace the startToken with wordToken on the first word
-						copy(e.buf[e.secondCapStartPos+1:e.pos+1], e.buf[e.secondCapStartPos:e.pos]) // make room for the wordToken in front of the second word
-						e.buf[e.secondCapStartPos] = wordToken // inject the wordToken in front of the second word
-						e.pos++
-						e.capEndPos++
-						for i2:=e.lastWordCapEndPos+1; i2<e.capEndPos; i2+=n2 {
-							r2, n2 = utf8.DecodeRune(e.buf[i2:])
-							if unicode.IsLetter(r2) {
-								copy(e.buf[i2+1:e.pos+1], e.buf[i2:e.pos])
-								e.buf[i2] = characterToken
-								e.pos++
-								e.capEndPos++
-								i2++
-								if e.pos >= len(e.buf) {
-									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
-									copy(newbuf, e.buf)
-									e.buf = newbuf
-								}
-							}
-						}
-					}
-				default: // there are 3 or more words all in caps
-					if !e.inWord {
-						copy(e.buf[e.capEndPos+1:e.pos+1], e.buf[e.capEndPos:e.pos]) // make room for the endToken after the last seen capital letter
-						e.buf[e.capEndPos] = endToken // inject the endToken
-						e.pos++
-					} else { // the last word begins with capitals but contains non-capitals
-						copy(e.buf[e.lastWordCapEndPos+1:e.pos+1], e.buf[e.lastWordCapEndPos:e.pos]) // make room for the endToken after the last seen capital letter in the previous word
-						e.buf[e.lastWordCapEndPos] = endToken // inject the endToken
-						e.pos++
-						e.capEndPos++
-						// Put a characterToken in front of every capital from then until now
-						for i2:=e.lastWordCapEndPos+1; i2<e.capEndPos; i2+=n2 {
-							r2, n2 = utf8.DecodeRune(e.buf[i2:])
-							if unicode.IsLetter(r2) {
-								copy(e.buf[i2+1:e.pos+1], e.buf[i2:e.pos])
-								e.buf[i2] = characterToken
-								e.pos++
-								e.capEndPos++
-								i2++
-								if e.pos >= len(e.buf) {
-									// no choice but to grow the buffer because we need to lookback
-									newbuf := make([]byte, len(e.buf) + (len(e.buf) / 4))
-									copy(newbuf, e.buf)
-									e.buf = newbuf
-								}
-							}
-						}
-					}
-			}
-
-			e.inCaps = false
+		switch e.nWords {
+			case 0: // it's a single capital word
+				e.buf[e.capStartPos] = wordToken
+			case 1: // There are two capital words in a row
+				e.buf[e.capStartPos] = wordToken // replace the beginToken with wordToken on the first word
+				copy(e.buf[e.secondCapStartPos+1:e.pos+1], e.buf[e.secondCapStartPos:e.pos]) // make room for the wordToken in front of the second word
+				e.buf[e.secondCapStartPos] = wordToken // inject the wordToken in front of the second word
+				e.pos++
+			default: // there are 3 or more words all in caps
+				copy(e.buf[e.capEndPos+1:e.pos+1], e.buf[e.capEndPos:e.pos]) // make room for the endToken after the last seen capital letter
+				e.buf[e.capEndPos] = endToken // inject the endToken
+				e.pos++
 		}
+		e.inCaps = false
+		e.inWord = false
 	}
 }
 
 func (e *Encoder) encode(data []byte) (int, bool) {
 	var r, r2 rune
 	var i, i2, n, n2 int
-	// These are copied to move them onto the stack, which may or may not have happened without doing this depending on the optimizer
+	// These are copied to move them onto the stack
 	var pos int = e.pos
 	var capStartPos int = e.capStartPos // this is both the beginning of the current capital streak and also the position safe to flush to
 	var capEndPos int = e.capEndPos
@@ -418,7 +320,7 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 									}
 								}
 							case 1: // the first word is all in caps
-								buf[capStartPos] = wordToken // replace the startToken with wordToken on the first word
+								buf[capStartPos] = wordToken // replace the beginToken with wordToken on the first word
 								if !inWord { // There are two capital words in a row, then space and then lowercase letters
 									copy(buf[secondCapStartPos+1:pos+1], buf[secondCapStartPos:pos]) // make room for the wordToken in front of the second word
 									buf[secondCapStartPos] = wordToken // inject the wordToken in front of the second word
@@ -450,7 +352,7 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 									buf[capEndPos] = endToken // inject the endToken
 									pos++
 								 } else { // 2 capital words in a row, then a word beginning with capitals but not all capitals
-									buf[capStartPos] = wordToken // replace the startToken with wordToken on the first word
+									buf[capStartPos] = wordToken // replace the beginToken with wordToken on the first word
 									copy(buf[secondCapStartPos+1:pos+1], buf[secondCapStartPos:pos]) // make room for the wordToken in front of the second word
 									buf[secondCapStartPos] = wordToken // inject the wordToken in front of the second word
 									pos++
@@ -511,15 +413,17 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 					capStartPos = pos // the current safe flush position
 				}
 			} else { // its not a letter
-				if r != apostrophe && r != apostrophe2 && !unicode.IsNumber(r) { // words may contain apostrophe or numbers
+				pos += utf8.EncodeRune(buf[pos:], r) // write the non-letter as it is
+				if isModifier(r) {
+					capEndPos = pos
+				} else if r != apostrophe && r != apostrophe2 && !unicode.IsNumber(r) { // words may contain apostrophes, numbers or modifiers
 					inWord = false
 				}
-				pos += utf8.EncodeRune(buf[pos:], r) // write the non-letter as it is
 			}
 		} else {
 			if unicode.IsUpper(r) { // Begin run of capitals
 				capStartPos = pos
-				buf[capStartPos] = startToken // this is necessary in case the buffer ends whilst still inCaps
+				buf[capStartPos] = beginToken // this is necessary in case the buffer ends whilst still inCaps
 				pos += utf8.EncodeRune(buf[pos+1:], unicode.ToLower(r)) + 1
 				capEndPos = pos
 				n2 = n
@@ -557,7 +461,7 @@ func isToken(chr byte) bool {
 		case characterToken:
 		case wordToken:
 		case titleToken:
-		case startToken:
+		case beginToken:
 		case endToken:
 			return true
 		default:
@@ -580,7 +484,7 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 		case characterToken:
 		case wordToken:
 		case titleToken:
-		case startToken:
+		case beginToken:
 		case endToken:
 			l = len(source) - 1
 		default:
@@ -606,7 +510,7 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 						break
 					} else {
 						pos += utf8.EncodeRune(destination[pos:], r)
-						if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2) {
+						if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r)) {
 							break
 						}
 					}
@@ -677,7 +581,7 @@ func (d *Reader) Read(data []byte) (int, error) {
 							break
 						} else {
 							pos += utf8.EncodeRune(data[pos:], r)
-							if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2) {
+							if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r)) {
 								break
 							}
 						}

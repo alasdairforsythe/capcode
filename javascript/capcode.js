@@ -1,7 +1,7 @@
 const characterToken = 'C';
 const wordToken = 'W';
 const titleToken = 'T';
-const startToken = 'S';
+const beginToken = 'B';
 const endToken = 'E';
 const apostrophe = '\'';
 const apostrophe2 = '’';
@@ -24,6 +24,10 @@ function isNumber(r) {
 
 function isTitle(r) {
   return /\p{Lt}/u.test(r);
+}
+
+function isModifier(r) {
+  return /\p{M}/u.test(r);
 }
 
 function toTitleCase(glyph) {
@@ -158,15 +162,17 @@ function encode(data) {
           capStartPos = pos;
         }
       } else {
-        if (r !== apostrophe && r !== apostrophe2 && !isNumber(r)) {
+        buf[pos++] = r;
+        if (isModifier(r)) {
+          capEndPos = pos
+        } else if (r !== apostrophe && r !== apostrophe2 && !isNumber(r)) {
           inWord = false;
         }
-        buf[pos++] = r;
       }
     } else {
       if (isUpper(r)) {
         capStartPos = pos;
-        buf[pos++] = startToken;
+        buf[pos++] = beginToken;
         buf[pos++] = r.toLowerCase();
         capEndPos = pos;
         nWords = 0;
@@ -188,98 +194,17 @@ function encode(data) {
   }
 
   if (inCaps) {
-    inWord = false
-    //capEndPos = pos
-    if (singleLetter && inWord) {
-      buf[capStartPos] = characterToken;
-    } else {
-      switch (nWords) {
-        case 0:
-          if (!inWord) {
-            buf[capStartPos] = wordToken;
-          } else {
-            buf[capStartPos] = characterToken;
-            for (let i2 = capStartPos + 1; i2 < capEndPos; i2++) {
-              let r2 = buf[i2];
-              if (isLetter(r2)) {
-                  for (let j = pos; j > i2; j--) {
-                      buf[j] = buf[j - 1];
-                  }
-                  buf[i2] = characterToken;
-                  pos++;
-                  capEndPos++;
-                  i2++;
-              }
-            }
-          }
-          break;
-        case 1:
-          buf[capStartPos] = wordToken;
-          if (!inWord) {
-            buf.splice(secondCapStartPos, 0, wordToken);
-            pos++;
-          } else {
-            for (let i2 = secondCapStartPos + 1; i2 < capEndPos; i2++) {
-              let r2 = buf[i2];
-              if (isLetter(r2)) {
-                  for (let j = pos; j > i2; j--) {
-                      buf[j] = buf[j - 1];
-                  }
-                  buf[i2] = characterToken;
-                  pos++;
-                  capEndPos++;
-                  i2++;
-              }
-            }
-          }
-          break;
-        case 2:
-          if (!inWord) {
-            buf.splice(capEndPos, 0, endToken);
-            pos++;
-          } else {
-            buf[capStartPos] = wordToken;
-            buf.splice(secondCapStartPos, 0, wordToken);
-            pos++;
-            capEndPos++;
-            for (let i2 = lastWordCapEndPos + 1; i2 < capEndPos; i2++) {
-              let r2 = buf[i2];
-              if (isLetter(r2)) {
-                  for (let j = pos; j > i2; j--) {
-                      buf[j] = buf[j - 1];
-                  }
-                  buf[i2] = characterToken;
-                  pos++;
-                  capEndPos++;
-                  i2++;
-              }
-            }
-          }
-          break;
-        default:
-          if (!inWord) {
-            buf.splice(capEndPos, 0, endToken);
-            pos++;
-          } else {
-            buf.splice(lastWordCapEndPos, 0, endToken);
-            pos++;
-            capEndPos++;
-            for (let i2 = lastWordCapEndPos + 1; i2 < capEndPos; i2++) {
-              let r2 = buf[i2];
-              if (isLetter(r2)) {
-                  for (let j = pos; j > i2; j--) {
-                      buf[j] = buf[j - 1];
-                  }
-                  buf[i2] = characterToken;
-                  pos++;
-                  capEndPos++;
-                  i2++;
-              }
-            }
-          }
+    switch (nWords) {
+      case 0:
+        buf[capStartPos] = wordToken;
+        break;
+      case 1:
+        buf[capStartPos] = wordToken;
+        buf.splice(secondCapStartPos, 0, wordToken);
+        break;
+      default:
+        buf.splice(capEndPos, 0, endToken);
       }
-    }
-
   }
 
   return buf.slice(0, pos).join('');
@@ -302,7 +227,7 @@ function decode(data) {
             case wordToken:
             wordUp = true;
             break;
-            case startToken:
+            case beginToken:
             inCaps = true;
             break;
             case endToken:
@@ -316,7 +241,7 @@ function decode(data) {
                     if (isLetter(r)) {
                         destination += r.toUpperCase();
                     } else {
-                        if (!(isNumber(r) || r == apostrophe || r == apostrophe2)) {
+                        if (!(isNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r))) {
                             wordUp = false
                         }
                         destination += r;
@@ -354,7 +279,7 @@ function decode(data) {
           case wordToken:
             this.wordUp = true;
             break;
-          case startToken:
+          case beginToken:
             this.inCaps = true;
             break;
           case endToken:
@@ -368,7 +293,7 @@ function decode(data) {
               if (isLetter(r)) {
                 destination += r.toUpperCase();
               } else {
-                if (!(isNumber(r) || r == apostrophe || r == apostrophe2)) {
+                if (!(isNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r))) {
                   this.wordUp = false;
                 }
                 destination += r;

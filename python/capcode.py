@@ -3,10 +3,13 @@ import unicodedata
 characterToken = 'C'
 wordToken = 'W'
 titleToken = 'T'
-startToken = 'S'
+beginToken = 'B'
 endToken = 'E'
 apostrophe = '\''
 apostrophe2 = '’'
+
+def is_modifier(r):
+    return 'M' in unicodedata.category(r)
 
 def encode(data):
     buf = []
@@ -18,7 +21,6 @@ def encode(data):
     in_caps = False
     single_letter = False
     in_word = False
-    i = 0
 
     for r in data:
         if in_caps:
@@ -96,13 +98,15 @@ def encode(data):
                     in_caps = False
                     cap_start_pos = len(buf)
             else:
-                if r != apostrophe and r != apostrophe2 and not r.isdigit():
-                    in_word = False
                 buf.append(r)
+                if is_modifier(r):
+                    cap_end_pos = len(buf)
+                elif r != apostrophe and r != apostrophe2 and not r.isdigit():
+                    in_word = False
         else:
             if r.isupper():
                 cap_start_pos = len(buf)
-                buf.append(startToken)
+                buf.append(beginToken)
                 buf.append(r.lower())
                 cap_end_pos = len(buf)
                 n_words = 0
@@ -116,68 +120,14 @@ def encode(data):
                 buf.append(r)
                 cap_start_pos = len(buf)
 
-        i += 1
-
     if in_caps:
-        in_word = False
-        if single_letter and in_word:
-            buf[cap_start_pos] = characterToken
+        if n_words == 0:
+            buf[cap_start_pos] = wordToken
+        elif n_words == 1:
+            buf[cap_start_pos] = wordToken
+            buf.insert(second_cap_start_pos, wordToken)
         else:
-            if n_words == 0:
-                if not in_word:
-                    buf[cap_start_pos] = wordToken
-                else:
-                    buf[cap_start_pos] = characterToken
-                    i2 = cap_start_pos + 1
-                    while i2 < cap_end_pos:
-                        r2 = buf[i2]
-                        if r2.isalpha():
-                            buf.insert(i2, characterToken)
-                            cap_end_pos += 1
-                            i2 += 1
-                        i2 += 1
-            elif n_words == 1:
-                buf[cap_start_pos] = wordToken
-                if not in_word:
-                    buf.insert(second_cap_start_pos, wordToken)
-                else:
-                    i2 = second_cap_start_pos + 1
-                    while i2 < cap_end_pos:
-                        r2 = buf[i2]
-                        if r2.isalpha():
-                            buf.insert(i2, characterToken)
-                            cap_end_pos += 1
-                            i2 += 1
-                        i2 += 1
-            elif n_words == 2:
-                if not in_word:
-                    buf.insert(cap_end_pos, endToken)
-                else:
-                    buf[cap_start_pos] = wordToken
-                    buf.insert(second_cap_start_pos, wordToken)
-                    cap_end_pos += 1
-                    i2 = last_word_cap_end_pos + 1
-                    while i2 < cap_end_pos:
-                        r2 = buf[i2]
-                        if r2.isalpha():
-                            buf.insert(i2, characterToken)
-                            cap_end_pos += 1
-                            i2 += 1
-                        i2 += 1
-            else:
-                if not in_word:
-                    buf.insert(cap_end_pos, endToken)
-                else:
-                    buf.insert(last_word_cap_end_pos, endToken)
-                    cap_end_pos += 1
-                    i2 = last_word_cap_end_pos + 1
-                    while i2 < cap_end_pos:
-                        r2 = buf[i2]
-                        if r2.isalpha():
-                            buf.insert(i2, characterToken)
-                            cap_end_pos += 1
-                            i2 += 1
-                        i2 += 1
+            buf.insert(cap_end_pos, endToken)
 
     return ''.join(buf)
 
@@ -194,7 +144,7 @@ def decode(data):
             char_up = True
         elif r == wordToken:
             word_up = True
-        elif r == startToken:
+        elif r == beginToken:
             in_caps = True
         elif r == endToken:
             in_caps = False
@@ -206,7 +156,7 @@ def decode(data):
                 if r.isalpha():
                     destination += r.upper()
                 else:
-                    if not (r.isdigit() or r == apostrophe or r == apostrophe2):
+                    if not (r.isdigit() or r == apostrophe or r == apostrophe2 or is_modifier(r)):
                         word_up = False
                     destination += r
             elif in_caps:
@@ -234,7 +184,7 @@ class Decoder:
                 self.char_up = True
             elif r == wordToken:
                 self.word_up = True
-            elif r == startToken:
+            elif r == beginToken:
                 self.in_caps = True
             elif r == endToken:
                 self.in_caps = False
@@ -246,7 +196,7 @@ class Decoder:
                     if r.isalpha():
                         destination += r.upper()
                     else:
-                        if not (r.isdigit() or r == apostrophe or r == apostrophe2):
+                        if not (r.isdigit() or r == apostrophe or r == apostrophe2 or is_modifier(r)):
                             self.word_up = False
                         destination += r
                 elif self.in_caps:
@@ -258,15 +208,20 @@ class Decoder:
         return destination
 
 #def main():
-#    string_to_encode = "THIS is A Test! TeST. THE QUICK BROWN FOX jumped. ǅ"
+#    string_to_encode = "THIS a ISÁ d A Test! TeST. THE Á QUICK BROWN FOXa  ÁÁ s Áccord s Á ÁÁÁjumped. ǅ TEST TEST TEST Á"
 #    print("Original String: ", string_to_encode)
+#    string_to_encode = unicodedata.normalize('NFC', string_to_encode)
+#    print("NFC String:      ", string_to_encode)
 #
 #    encoded_string = encode(string_to_encode)
 #    print("Encoded String: ", encoded_string)
+#    encoded_string = unicodedata.normalize('NFD', encoded_string)
+#    print("NFD String:      ", encoded_string)
 #
 #    decoder = Decoder()
 #    decoded_string = decoder.decode(encoded_string)
-#    print("Decoded String: ", decoded_string)
+#    print("Decoded String:  ", decoded_string)
+#    print("NFC String:      ", unicodedata.normalize('NFC', decoded_string))
 #
 #if __name__ == "__main__":
 #    main()
