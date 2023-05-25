@@ -4,20 +4,18 @@ package capcode
 
 	capcode
 
-	For encoding uppercasing and titlecasing into lowercasing.
+	For encoding uppercasing into lowercasing.
 
 	- Parsed as UTF-8 glyphs
-	- WordSeparator is any glyph that is not a letter, number or one of two apostrophes '’
+	- WordSeparator is any glyph that is not a letter, number, modifier or one of two apostrophes '’
 	- CapitalWord is a word where every letter is uppercase and it's bounded by a WordSeparator on both sides, or end of text
 	
 	Decoding:
 		The C characterToken makes the following 1 UTF8 glyph uppercase
-		The T titleToken makes the following UTF8 glyph titlecase (for special glphs that have distinct uppercase & titlecase)
 		The W wordToken makes all characters following this uppercase until a WordSeparator reached
 		The B beginToken makes all glyphs uppercase until the next E endToken
 
 	Encoding:
-		Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
 		3 or more CapitalWords in sequence are lowercased and begin with S beginToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
 		1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
 		If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert S beginToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. THE QUICK BROWN -> Sthe quick brownE
@@ -25,7 +23,7 @@ package capcode
 		Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
 	Notes:
-		Titlecase glyphs are always proceeded by T titleToken, and are otherwise unrelated to the rules for the uppercase
+		Titlecase glyphs (for special glphs that have distinct uppercase & titlecase) are left unchanged
 		C characterToken never occurs before the last character in a word, in that case W wordToken is used
 		E EndToken never occurs in the middle of a word, while s beginToken may occur in the middle of a word
 
@@ -42,7 +40,6 @@ import (
 const (
 	characterToken = 'C'
 	wordToken      = 'W'
-	titleToken     = 'T'
 	beginToken     = 'B'
 	endToken       = 'E'
 	apostrophe	   = '\''
@@ -432,12 +429,7 @@ func (e *Encoder) encode(data []byte) (int, bool) {
 				inWord = true
 				nWords = 0
 			} else {
-				if unicode.IsTitle(r) {
-					buf[pos] = titleToken
-					pos += utf8.EncodeRune(buf[pos+1:], unicode.ToLower(r)) + 1
-				} else {
-					pos += utf8.EncodeRune(buf[pos:], r)
-				}
+				pos += utf8.EncodeRune(buf[pos:], r)
 				capStartPos = pos // the current safe flush position
 			}
 		}
@@ -469,7 +461,6 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 	switch source[len(source) - 1] {
 		case characterToken:
 		case wordToken:
-		case titleToken:
 		case beginToken:
 		case endToken:
 			l = len(source) - 1
@@ -480,10 +471,6 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 	for ; i < l; i += n {
 		r, n = utf8.DecodeRune(source[i:]) // get the next rune
 		switch r {
-			case titleToken:
-				i++
-				r, n = utf8.DecodeRune(source[i:])
-				pos += utf8.EncodeRune(destination[pos:], unicode.ToTitle(r))
 			case characterToken:
 				i++
 				r, n = utf8.DecodeRune(source[i:])
@@ -551,10 +538,6 @@ func (d *Reader) Read(data []byte) (int, error) {
 		for ; i < dangerZone; i += n {
 			r, n = utf8.DecodeRune(data[i:]) // get the next rune
 			switch r {
-				case titleToken:
-					i++
-					r, n = utf8.DecodeRune(data[i:])
-					pos += utf8.EncodeRune(data[pos:], unicode.ToTitle(r))
 				case characterToken:
 					i++
 					r, n = utf8.DecodeRune(data[i:])

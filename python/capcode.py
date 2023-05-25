@@ -2,7 +2,6 @@ import unicodedata
 
 characterToken = 'C'
 wordToken = 'W'
-titleToken = 'T'
 beginToken = 'B'
 endToken = 'E'
 apostrophe = '\''
@@ -113,9 +112,6 @@ def encode(data):
                 in_caps = True
                 in_word = True
                 single_letter = True
-            elif unicodedata.category(r) == 'Lt':
-                buf.append(titleToken)
-                buf.append(r.lower())
             else:
                 buf.append(r)
                 cap_start_pos = len(buf)
@@ -136,11 +132,8 @@ def decode(data):
     in_caps = False
     char_up = False
     word_up = False
-    title_up = False
     for r in data:
-        if r == titleToken:
-            title_up = True
-        elif r == characterToken:
+        if r == characterToken:
             char_up = True
         elif r == wordToken:
             word_up = True
@@ -161,8 +154,6 @@ def decode(data):
                     destination += r
             elif in_caps:
                 destination += r.upper()
-            elif title_up:
-                destination += r.title()
             else:
                 destination += r
     return destination
@@ -173,14 +164,11 @@ class Decoder:
         self.in_caps = False
         self.char_up = False
         self.word_up = False
-        self.title_up = False
 
     def decode(self, data):
         destination = ""
         for r in data:
-            if r == titleToken:
-                self.title_up = True
-            elif r == characterToken:
+            if r == characterToken:
                 self.char_up = True
             elif r == wordToken:
                 self.word_up = True
@@ -201,8 +189,6 @@ class Decoder:
                         destination += r
                 elif self.in_caps:
                     destination += r.upper()
-                elif self.title_up:
-                    destination += r.title()
                 else:
                     destination += r
         return destination

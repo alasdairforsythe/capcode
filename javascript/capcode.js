@@ -1,6 +1,5 @@
 const characterToken = 'C';
 const wordToken = 'W';
-const titleToken = 'T';
 const beginToken = 'B';
 const endToken = 'E';
 const apostrophe = '\'';
@@ -22,20 +21,8 @@ function isNumber(r) {
   return /\p{Nd}/u.test(r);
 }
 
-function isTitle(r) {
-  return /\p{Lt}/u.test(r);
-}
-
 function isModifier(r) {
   return /\p{M}/u.test(r);
-}
-
-function toTitleCase(glyph) {
-  const titlecaseGlyph = String.fromCodePoint(glyph.codePointAt(0) - 1);
-  if (isTitle(titlecaseGlyph)) {
-    return titlecaseGlyph;
-  }
-  return glyph.toUpperCase();
 }
 
 function encode(data) {
@@ -180,12 +167,7 @@ function encode(data) {
         inWord = true;
         singleLetter = true;
       } else {
-        if (isTitle(r)) {
-          buf[pos++] = titleToken;
-          buf[pos++] = r.toLowerCase();
-        } else {
-          buf[pos++] = r;
-        }
+        buf[pos++] = r;
         capStartPos = pos;
       }
     }
@@ -215,12 +197,8 @@ function decode(data) {
     let inCaps = false;
     let charUp = false;
     let wordUp = false;
-    let titleUp = false;
     for (let r of data) {
         switch (r) {
-            case titleToken: // there's no easy way to do this in Javascript so its just being uppercased for now
-            titleUp = true;
-            break;
             case characterToken:
             charUp = true;
             break;
@@ -248,8 +226,6 @@ function decode(data) {
                     }
                   } else if (inCaps) {
                     destination += r.toUpperCase();
-                  } else if (titleUp) {
-                    destination += toTitleCase(r);
                   } else {
                     destination += r;
                   }
@@ -263,16 +239,12 @@ function decode(data) {
       this.inCaps = false;
       this.charUp = false;
       this.wordUp = false;
-      this.titleUp = false;
     }
   
     decode(data) {
       let destination = "";
       for (let r of data) {
         switch (r) {
-          case titleToken: // there's no easy way to do this in Javascript so its just being uppercased for now
-            this.titleUp = true;
-            break;
           case characterToken:
             this.charUp = true;
             break;
@@ -300,8 +272,6 @@ function decode(data) {
               }
             } else if (this.inCaps) {
               destination += r.toUpperCase();
-            } else if (this.titleUp) {
-              destination += toTitleCase(r);
             } else {
               destination += r;
             }

@@ -20,8 +20,7 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 ### Fully UTF-8 Compliant
 
 - Supports Unicode 13.0.0 (newer version supported depending on the implementation)
-- Correctly recognizes distinct uppercase and titlecase characters from any Unicode supported script
-- Works correctly with any UTF-8 encoding scheme (NFC, NFC, etc.)
+- Works correctly with any UTF-8 encoding scheme (NFC, NFD, etc.)
 
 ### Features
 
@@ -46,12 +45,10 @@ Definitions:
 
 Decoding:
 - The C characterToken makes the following 1 UTF8 glyph uppercase
-- The T titleToken makes the following 1 UTF8 glyph titlecase (for special glphs that have distinct uppercase & titlecase)
 - The W wordToken makes all characters following this uppercase until a WordSeparator reached
 - The B beginToken makes all glyphs uppercase until the next E endToken
 
 Encoding:
-- Any titlecase glyph is to be lowercased and proceeded by T titleToken (for special glphs that have distinct uppercase & titlecase)
 - 3 or more CapitalWords in sequence are lowercased and begin with B beginToken and end with E endToken, e.g. THE QUICK BROWN -> Sthe quick brownE
 - 1 or 2 CapitalWords in sequence are each proceeded by W wordToken, e.g. THE QUICK -> Wthe Wquick
 - If 2 or more letters at the end of a word are uppercased, and its followed by 2 or more CapitalWords, insert B beginToken just before the 2 or more letters, E endToken after the CapitalWords and lowercase all in between, e.g. tHE QUICK BROWN -> tShe quick brownE
@@ -59,6 +56,6 @@ Encoding:
 - Any other uppercase characters within a word are lowercased and proceeded by the C characterToken, e.g. Test -> Ctest, tESt -> tCeCst
 
 Notes:
-- Titlecase glyphs are always proceeded by T titleToken, and are otherwise unrelated to the rules for the uppercase
+- Titlecase glyphs (for special glphs that have distinct uppercase & titlecase) are left unchanged
 - C characterToken never occurs before the last character in a word, in that case W wordToken is used (W uppercases all characters from here until the end of the word)
 - E endToken never occurs in the middle of a word, while B beginToken may occur in the middle of a word
