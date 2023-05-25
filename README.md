@@ -33,7 +33,9 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 ### To Do
 
 ☐ Optimized pure C implementation
+
 ☐ Make a Python module wrapping the C implementation
+
 ☐ Push it to PyPI
 
 ### Formula
