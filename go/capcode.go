@@ -494,15 +494,15 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 	for ; i < l; i += n {
 		r, n = utf8.DecodeRune(source[i:]) // get the next rune
 		switch r {
-			case 'T':
+			case titleToken:
 				i++
 				r, n = utf8.DecodeRune(source[i:])
 				pos += utf8.EncodeRune(destination[pos:], unicode.ToTitle(r))
-			case 'C':
+			case characterToken:
 				i++
 				r, n = utf8.DecodeRune(source[i:])
 				pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
-			case 'W':
+			case wordToken:
 				for i+=n; i<l; i+=n {
 					r, n = utf8.DecodeRune(source[i:])
 					if unicode.IsLetter(r) {
@@ -515,9 +515,9 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 						}
 					}
 				}
-			case 'B':
+			case beginToken:
 				inCaps = true
-			case 'E':
+			case endToken:
 				inCaps = false
 			default:
 				if !inCaps { // prefer this branch
@@ -565,15 +565,15 @@ func (d *Reader) Read(data []byte) (int, error) {
 		for ; i < dangerZone; i += n {
 			r, n = utf8.DecodeRune(data[i:]) // get the next rune
 			switch r {
-				case 'T':
+				case titleToken:
 					i++
 					r, n = utf8.DecodeRune(data[i:])
 					pos += utf8.EncodeRune(data[pos:], unicode.ToTitle(r))
-				case 'C':
+				case characterToken:
 					i++
 					r, n = utf8.DecodeRune(data[i:])
 					pos += utf8.EncodeRune(data[pos:], unicode.ToUpper(r))
-				case 'W':
+				case wordToken:
 					for i+=n; i<len(data); i+=n {
 						r, n = utf8.DecodeRune(data[i:])
 						if unicode.IsLetter(r) {
@@ -586,9 +586,9 @@ func (d *Reader) Read(data []byte) (int, error) {
 							}
 						}
 					}
-				case 'B':
+				case beginToken:
 					inCaps = true
-				case 'E':
+				case endToken:
 					inCaps = false
 				default:
 					if !inCaps { // prefer this branch
@@ -599,4 +599,5 @@ func (d *Reader) Read(data []byte) (int, error) {
 			}
 		}
 	}
+	return pos, err // doesn't really get here
 }
