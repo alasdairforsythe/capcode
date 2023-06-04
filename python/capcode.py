@@ -128,7 +128,7 @@ def encode(data):
     return ''.join(buf)
 
 def decode(data):
-    destination = ""
+    destination = []
     in_caps = False
     char_up = False
     word_up = False
@@ -143,21 +143,20 @@ def decode(data):
             in_caps = False
         else:
             if char_up:
-                destination += r.upper()
+                destination.append(r.upper())
                 char_up = False
             elif word_up:
                 if r.isalpha():
-                    destination += r.upper()
+                    destination.append(r.upper())
                 else:
                     if not (r.isdigit() or r == apostrophe or r == apostrophe2 or is_modifier(r)):
                         word_up = False
-                    destination += r
+                    destination.append(r)
             elif in_caps:
-                destination += r.upper()
+                destination.append(r.upper())
             else:
-                destination += r
-    return destination
-
+                destination.append(r)
+    return ''.join(destination)
 
 class Decoder:
     def __init__(self):
@@ -166,29 +165,35 @@ class Decoder:
         self.word_up = False
 
     def decode(self, data):
-        destination = ""
+        destination = []
+        in_caps = self.in_caps
+        char_up = self.char_up
+        word_up = self.word_up
         for r in data:
             if r == characterToken:
-                self.char_up = True
+                char_up = True
             elif r == wordToken:
-                self.word_up = True
+                word_up = True
             elif r == beginToken:
-                self.in_caps = True
+                in_caps = True
             elif r == endToken:
-                self.in_caps = False
+                in_caps = False
             else:
-                if self.char_up:
-                    destination += r.upper()
-                    self.char_up = False
-                elif self.word_up:
+                if char_up:
+                    destination.append(r.upper())
+                    char_up = False
+                elif word_up:
                     if r.isalpha():
-                        destination += r.upper()
+                        destination.append(r.upper())
                     else:
                         if not (r.isdigit() or r == apostrophe or r == apostrophe2 or is_modifier(r)):
-                            self.word_up = False
-                        destination += r
-                elif self.in_caps:
-                    destination += r.upper()
+                            word_up = False
+                        destination.append(r)
+                elif in_caps:
+                    destination.append(r.upper())
                 else:
-                    destination += r
-        return destination
+                    destination.append(r)
+        self.in_caps = in_caps
+        self.char_up = char_up
+        self.word_up = word_up
+        return ''.join(destination)
