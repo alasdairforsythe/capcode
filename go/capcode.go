@@ -30,11 +30,13 @@ package capcode
 */
 
 import (
-	"unicode"
-	"unicode/utf8"
 	"io"
 	"os"
 	"sync"
+	"errors"
+	"unicode"
+	"unicode/utf8"
+	"encoding/binary"
 )
 
 const (
@@ -597,7 +599,7 @@ func (d *Decoder) DecodeFrom(destination []byte, source []byte) []byte {
 						if unicode.IsLetter(r) {
 							pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
 						} else {
-							pos += utf8.EncodeRune(data[pos:], r)
+							pos += utf8.EncodeRune(destination[pos:], r)
 							if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r)) {
 								wordUp = false
 							}
@@ -638,11 +640,12 @@ func (d *Reader) Read(data []byte) (int, error) {
 		return len(newar), err
 	}
 
-	i := incompleteUTF8(data[:n])
+	i := IncompleteUTF8Bytes(data[:n])
 	if i == 0 {
 		newar := d.d.Decode(data[:n])
 		return len(newar), err
 	} else {
+		var n2 int
 		for {
 			n2, err = d.r.Read(data[n:n+1])
 			n += n2
