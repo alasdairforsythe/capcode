@@ -192,22 +192,3 @@ class Decoder:
                 else:
                     destination += r
         return destination
-
-#def main():
-#    string_to_encode = "THIS a ISÁ d A Test! TeST. THE Á QUICK BROWN FOXa  ÁÁ s Áccord s Á ÁÁÁjumped. ǅ TEST TEST TEST Á"
-#    print("Original String: ", string_to_encode)
-#    string_to_encode = unicodedata.normalize('NFC', string_to_encode)
-#    print("NFC String:      ", string_to_encode)
-#
-#    encoded_string = encode(string_to_encode)
-#    print("Encoded String: ", encoded_string)
-#    encoded_string = unicodedata.normalize('NFD', encoded_string)
-#    print("NFD String:      ", encoded_string)
-#
-#    decoder = Decoder()
-#    decoded_string = decoder.decode(encoded_string)
-#    print("Decoded String:  ", decoded_string)
-#    print("NFC String:      ", unicodedata.normalize('NFC', decoded_string))
-#
-#if __name__ == "__main__":
-#    main()

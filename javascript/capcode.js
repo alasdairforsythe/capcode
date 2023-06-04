@@ -25,7 +25,7 @@ function isModifier(r) {
   return /\p{M}/u.test(r);
 }
 
-function encode(data) {
+function capcode_encode(data) {
   let buf = new Array(Math.ceil(data.length + (data.length / 4) + 8));
   let pos = 0;
   let capStartPos = 0;
@@ -36,7 +36,6 @@ function encode(data) {
   let inCaps = false;
   let singleLetter = false;
   let inWord = false;
-  let i = 0;
 
   for (let r of data) {
 
@@ -171,8 +170,6 @@ function encode(data) {
         capStartPos = pos;
       }
     }
-
-    i++
   }
 
   if (inCaps) {
@@ -183,16 +180,18 @@ function encode(data) {
       case 1:
         buf[capStartPos] = wordToken;
         buf.splice(secondCapStartPos, 0, wordToken);
+        pos++;
         break;
       default:
         buf.splice(capEndPos, 0, endToken);
+        pos++;
       }
   }
 
   return buf.slice(0, pos).join('');
 }
 
-function decode(data) {
+function capcode_decode(data) {
     let destination = "";  
     let inCaps = false;
     let charUp = false;
@@ -234,7 +233,7 @@ function decode(data) {
     return destination;
   }
 
-  class Decoder {
+class CapcodeDecoder {
     constructor() {
       this.inCaps = false;
       this.charUp = false;

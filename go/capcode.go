@@ -59,6 +59,60 @@ func isModifier(r rune) bool {
 	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || unicode.Is(unicode.Me, r)
 }
 
+// Returns the number of bytes at the end of the slice of bytes that are part of an incomplete UTF-8 sequence
+func IncompleteUTF8Bytes(bytes []byte) int {
+    bytesLen := len(bytes)
+    // Single byte or empty string
+	if bytesLen == 0 {
+		return 0
+	}
+    if  bytes[bytesLen - 1] & 0b10000000 == 0 {
+        return 0
+    }
+    // Find the start of the last character sequence
+    seqStart := bytesLen - 1
+    for seqStart >= 0 && (bytes[seqStart] & 0b11000000) == 0b10000000 {
+        seqStart--
+    }
+    // If no sequence start found, all bytes are continuation bytes and thus are all incomplete
+    if seqStart == -1 {
+        return bytesLen
+    }
+    // Determine expected sequence length from leading byte
+    seqLen := 0
+    for (bytes[seqStart] & (0b10000000 >> seqLen)) != 0 {
+        seqLen++
+    }
+    // If sequence length is larger than the remaining bytes, it's incomplete
+    if bytesLen - seqStart < seqLen {
+        return seqLen - (bytesLen - seqStart)
+    }
+    return 0
+}
+
+func IncompleteUTF16Bytes(bytes []byte) int {
+	bytesLen := len(bytes)
+	if bytesLen == 0 {
+		return 0
+	}
+	if bytesLen % 2 != 0 {
+		var lastThreeBytes uint16
+		if bytesLen >= 3 {
+			lastThreeBytes = binary.LittleEndian.Uint16(bytes[bytesLen-3 : bytesLen-1])
+			if lastThreeBytes >= 0xD800 && lastThreeBytes <= 0xDBFF {
+				return 3
+			}
+		}
+		return 1
+	}
+	// Check if last 16-bit unit is a high surrogate
+	lastTwoBytes := binary.LittleEndian.Uint16(bytes[bytesLen-2 : bytesLen])
+	if lastTwoBytes >= 0xD800 && lastTwoBytes <= 0xDBFF && bytesLen < 4 {
+		return 2 // High surrogate without a following low surrogate
+	}
+	return 0
+}
+
 type Encoder struct {
 	buf     []byte
 	pos, capStartPos, secondCapStartPos, capEndPos, nWords, lastWordCapEndPos int
@@ -504,9 +558,68 @@ func DecodeFrom(destination []byte, source []byte) []byte {
 	return destination[:pos]
 }
 
+type Decoder struct {
+	inCaps bool
+	charUp bool
+	wordUp bool
+}
+
+// Decodes the bytes into the same slice
+func (d *Decoder) Decode(data []byte) []byte {
+	return d.DecodeFrom(data, data)
+}
+
+func (d *Decoder) DecodeFrom(destination []byte, source []byte) []byte {
+	var i, n, pos, l int
+	var r rune
+
+	inCaps := d.inCaps
+	charUp := d.charUp
+	wordUp := d.wordUp
+
+	for ; i < l; i += n {
+		r, n = utf8.DecodeRune(source[i:]) // get the next rune
+		switch r {
+			case characterToken:
+				charUp = true
+			case wordToken:
+				wordUp = true
+			case beginToken:
+				inCaps = true
+			case endToken:
+				inCaps = false
+			default:
+				switch {
+					case charUp:
+						pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
+						charUp = false
+					case wordUp:
+						if unicode.IsLetter(r) {
+							pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
+						} else {
+							pos += utf8.EncodeRune(data[pos:], r)
+							if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r)) {
+								wordUp = false
+							}
+						}
+					case inCaps:
+						pos += utf8.EncodeRune(destination[pos:], unicode.ToUpper(r))
+					default:
+						pos += utf8.EncodeRune(destination[pos:], r)
+				}
+		}
+	}
+
+	d.inCaps = inCaps
+	d.charUp = charUp
+	d.wordUp = wordUp
+
+	return destination[:pos]
+}
+
 type Reader struct {
 	r io.Reader
-	inCaps bool
+	d Decoder
 }
 
 func NewReader(f io.Reader) *Reader {
@@ -515,58 +628,29 @@ func NewReader(f io.Reader) *Reader {
 
 // Populate slice of bytes
 func (d *Reader) Read(data []byte) (int, error) {
+	l := len(data) - glyphMaxLen
+	if l <= 0 {
+		return 0, errors.New(`Buffer too small`)
+	}
+	n, err := d.r.Read(data[:l])
+	if err == io.EOF {
+		newar := d.d.Decode(data[:n])
+		return len(newar), err
+	}
 
-	var i, n, l, pos, dangerZone int
-	var r rune
-	var err error
-	inCaps := d.inCaps
-
-	for {
-		n, err = d.r.Read(data[l:])  // Because the decoded cannot be longer than the encoded, I'm using the output slice as the buffer
-		l += n
-		if i == l {
-			d.inCaps = inCaps
-			return pos, err
-		}
-		
-		if err == io.EOF {
-			dangerZone = l
-		} else {
-			dangerZone = l-glyphMaxLen-1  // must have enough for the entire next rune, otherwise we might cut it in half
-		}
-
-		for ; i < dangerZone; i += n {
-			r, n = utf8.DecodeRune(data[i:]) // get the next rune
-			switch r {
-				case characterToken:
-					i++
-					r, n = utf8.DecodeRune(data[i:])
-					pos += utf8.EncodeRune(data[pos:], unicode.ToUpper(r))
-				case wordToken:
-					for i+=n; i<len(data); i+=n {
-						r, n = utf8.DecodeRune(data[i:])
-						if unicode.IsLetter(r) {
-							pos += utf8.EncodeRune(data[pos:], unicode.ToUpper(r))
-							break
-						} else {
-							pos += utf8.EncodeRune(data[pos:], r)
-							if !(unicode.IsNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r)) {
-								break
-							}
-						}
-					}
-				case beginToken:
-					inCaps = true
-				case endToken:
-					inCaps = false
-				default:
-					if !inCaps { // prefer this branch
-						pos += utf8.EncodeRune(data[pos:], r)
-					} else {
-						pos += utf8.EncodeRune(data[pos:], unicode.ToUpper(r))
-					}
+	i := incompleteUTF8(data[:n])
+	if i == 0 {
+		newar := d.d.Decode(data[:n])
+		return len(newar), err
+	} else {
+		for {
+			n2, err = d.r.Read(data[n:n+1])
+			n += n2
+			i = IncompleteUTF8Bytes(data[:n])
+			if n == len(data) || err == io.EOF || i == 0 || n2 == 0 {
+				newar := d.d.Decode(data[:n])
+				return len(newar), err
 			}
 		}
 	}
-	return pos, err // doesn't really get here
 }

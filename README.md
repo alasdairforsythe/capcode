@@ -9,7 +9,7 @@ go mod tidy
 go build capcode.go
 ```
 
-### Examples:
+### Example:
 ```
 The QUICK BROWN FOX Jumped over the LAZY dog. NextOne. THANK YOU!
 ```
@@ -21,6 +21,7 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 
 - Supports Unicode 13.0.0 (newer version supported depending on the implementation)
 - Works correctly with any UTF-8 encoding scheme (NFC, NFD, etc.)
+- Python & Javascript implementations also work with UTF-16
 
 ### Features
 
@@ -31,11 +32,9 @@ Cthe Bquick brown foxE Cjumped over the Wlazy dog. CnextCone. Wthank Wyou!
 
 ### To Do
 
-☐ Optimized pure C implementation
+☐ Optimized C++ implementation
 
-☐ Make a Python module wrapping the C implementation
-
-☐ Push it to PyPI
+☐ Make a Python module wrapping the C++ implementation
 
 ### Formula
 
