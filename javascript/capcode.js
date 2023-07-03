@@ -1,7 +1,6 @@
 const characterToken = 'C';
 const wordToken = 'W';
-const beginToken = 'B';
-const endToken = 'E';
+const deleteToken = 'D';
 const apostrophe = '\'';
 const apostrophe2 = '’';
 
@@ -26,218 +25,118 @@ function isModifier(r) {
 }
 
 function capcode_encode(data) {
-  let buf = new Array(Math.ceil(data.length + (data.length / 4) + 8));
+  let buf = new Array(Math.ceil(data.length + (data.length / 2) + 8));
   let pos = 0;
-  let capStartPos = 0;
-  let capEndPos = 0;
-  let secondCapStartPos = 0;
-  let lastWordCapEndPos = 0;
-  let nWords = 0;
-  let inCaps = false;
-  let singleLetter = false;
+  let gobackPos = 0;
+  let wordTokenPos = 0;
+  let rlast = '.';
+  let rlast2 = '.';
   let inWord = false;
+  let multiLetter = false;
 
   for (let r of data) {
 
-    if (inCaps) {
-      if (isLetter(r)) {
-        if (isUpper(r)) {
-          if (!inWord) {
-            inWord = true;
-            if (nWords === 0) {
-              secondCapStartPos = pos;
-            }
-            lastWordCapEndPos = capEndPos;
-            nWords++;
-          }
-          buf[pos++] = r.toLowerCase();
-          capEndPos = pos;
-          singleLetter = false;
-        } else {
-          if (singleLetter && inWord) {
-            buf[capStartPos] = characterToken;
-          } else {
-            switch (nWords) {
-              case 0:
-                if (!inWord) {
-                  buf[capStartPos] = wordToken;
-                } else {
-                  buf[capStartPos] = characterToken;
-                  for (let i2 = capStartPos + 1; i2 < capEndPos; i2++) {
-                    let r2 = buf[i2];
-                    if (isLetter(r2)) {
-                        for (let j = pos; j > i2; j--) {
-                            buf[j] = buf[j - 1];
-                        }
-                        buf[i2] = characterToken;
-                        pos++;
-                        capEndPos++;
-                        i2++;
-                    }
-                  }
-                }
-                break;
-              case 1:
-                buf[capStartPos] = wordToken;
-                if (!inWord) {
-                  buf.splice(secondCapStartPos, 0, wordToken);
-                  pos++;
-                } else {
-                  for (let i2 = secondCapStartPos; i2 < capEndPos; i2++) {
-                    let r2 = buf[i2];
-                    if (isLetter(r2)) {
-                        for (let j = pos; j > i2; j--) {
-                            buf[j] = buf[j - 1];
-                        }
-                        buf[i2] = characterToken;
-                        pos++;
-                        capEndPos++;
-                        i2++;
-                    }
-                  }
-                }
-                break;
-              case 2:
-                if (!inWord) {
-                  buf.splice(capEndPos, 0, endToken);
-                  pos++;
-                } else {
-                  buf[capStartPos] = wordToken;
-                  buf.splice(secondCapStartPos, 0, wordToken);
-                  pos++;
-                  capEndPos++;
-                  for (let i2 = lastWordCapEndPos + 1; i2 < capEndPos; i2++) {
-                    let r2 = buf[i2];
-                    if (isLetter(r2)) {
-                        for (let j = pos; j > i2; j--) {
-                            buf[j] = buf[j - 1];
-                        }
-                        buf[i2] = characterToken;
-                        pos++;
-                        capEndPos++;
-                        i2++;
-                    }
-                  }
-                }
-                break;
-              default:
-                if (!inWord) {
-                  buf.splice(capEndPos, 0, endToken);
-                  pos++;
-                } else {
-                  buf.splice(lastWordCapEndPos, 0, endToken);
-                  pos++;
-                  capEndPos++;
-                  for (let i2 = lastWordCapEndPos + 1; i2 < capEndPos; i2++) {
-                    let r2 = buf[i2];
-                    if (isLetter(r2)) {
-                        for (let j = pos; j > i2; j--) {
-                            buf[j] = buf[j - 1];
-                        }
-                        buf[i2] = characterToken;
-                        pos++;
-                        capEndPos++;
-                        i2++;
-                    }
-                  }
-                }
-            }
-          }
-          buf[pos++] = r;
-          inCaps = false;
-          capStartPos = pos;
+    if (inWord) {
+      if (isUpper(r)) {
+        if (!(isLetter(rlast) || rlast == apostrophe || rlast == apostrophe2 || isModifier(rlast))) {
+          buf[pos++] = deleteToken;
+          buf[pos++] = ' ';
         }
+        multiLetter = true;
+        buf[pos++] = r.toLowerCase();
       } else {
-        buf[pos++] = r;
-        if (isModifier(r)) {
-          capEndPos = pos
-        } else if (r !== apostrophe && r !== apostrophe2 && !isNumber(r)) {
+        if (isLower(r)) {
           inWord = false;
+          buf[wordTokenPos] = characterToken;
+          if (multiLetter) {
+            for (let i2 = gobackPos; i2 < pos; i2++) {
+              if (buf[i2] == deleteToken && buf[i2+1] == ' ') {
+                if (isLower(buf[i2 + 2])) {
+                  for (let j = pos+1; j > i2 + 2; j--) {
+                    buf[j] = buf[j - 1];
+                  }
+                  buf[i2] = deleteToken;
+                  buf[i2+1] = characterToken;
+                  buf[i2+2] = ' ';
+                  pos++;
+                  i2++
+                }
+                i2 += 2;
+              } else {
+                if (isLower(buf[i2])) {
+                  for (let j = pos+3; j > i2; j--) {
+                    buf[j] = buf[j - 3];
+                  }
+                  buf[i2] = deleteToken;
+                  buf[i2+1] = characterToken;
+                  buf[i2+2] = ' ';
+                  pos += 3;
+                  i2 += 3;
+                }
+              }
+            }
+          }
+          if (!(isLetter(rlast) || rlast == apostrophe || rlast == apostrophe2 || isModifier(rlast))) {
+            buf[pos++] = deleteToken;
+            buf[pos++] = ' ';
+          }
+        } else {
+          if (isNumber(r)) {
+            if (!isNumber(rlast)) {
+              buf[pos++] = deleteToken;
+              buf[pos++] = ' '
+            }
+          } else if (!(r == apostrophe || r == apostrophe2 || isModifier(r))) {
+            inWord = false;
+          }
         }
+        buf[pos++] = r
       }
     } else {
-      if (isUpper(r)) {
-        capStartPos = pos;
-        buf[pos++] = beginToken;
+      if (isLower(r)) {
+        if (!(rlast == ' ' || isLetter(rlast) || (isLetter(rlast2) && (rlast == apostrophe || rlast == apostrophe2)) || isModifier(rlast))) {
+          buf[pos++] = deleteToken;
+          buf[pos++] = ' ';
+        }
+        buf[pos++] = r;
+      } else if (isUpper(r)) {
+        if (rlast == ' ') {
+          wordTokenPos = pos - 1;
+          buf[wordTokenPos] = wordToken;
+          buf[pos++] = ' ';
+        } else {
+          buf[pos++] = deleteToken;
+          wordTokenPos = pos;
+          buf[pos++] = wordToken;
+          buf[pos++] = ' '
+        }
         buf[pos++] = r.toLowerCase();
-        capEndPos = pos;
-        nWords = 0;
-        inCaps = true;
+        gobackPos = pos;
+        multiLetter = false;
         inWord = true;
-        singleLetter = true;
+      } else if (isNumber(r)) {
+        if (!(rlast == ' ' || isNumber(rlast))) {
+          buf[pos++] = deleteToken;
+          buf[pos++] = ' ';
+        }
+        buf[pos++] = r;
       } else {
         buf[pos++] = r;
-        capStartPos = pos;
       }
     }
-  }
-
-  if (inCaps) {
-    switch (nWords) {
-      case 0:
-        buf[capStartPos] = wordToken;
-        break;
-      case 1:
-        buf[capStartPos] = wordToken;
-        buf.splice(secondCapStartPos, 0, wordToken);
-        pos++;
-        break;
-      default:
-        buf.splice(capEndPos, 0, endToken);
-        pos++;
-      }
+    rlast2 = rlast;
+    rlast = r;
   }
 
   return buf.slice(0, pos).join('');
 }
 
-function capcode_decode(data) {
-    let destination = "";  
-    let inCaps = false;
-    let charUp = false;
-    let wordUp = false;
-    for (let r of data) {
-        switch (r) {
-            case characterToken:
-            charUp = true;
-            break;
-            case wordToken:
-            wordUp = true;
-            break;
-            case beginToken:
-            inCaps = true;
-            break;
-            case endToken:
-            inCaps = false;
-            break;
-            default:
-                if (charUp) {
-                    destination += r.toUpperCase();
-                    charUp = false;
-                  } else if (wordUp) {
-                    if (isLetter(r)) {
-                        destination += r.toUpperCase();
-                    } else {
-                        if (!(isNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r))) {
-                            wordUp = false
-                        }
-                        destination += r;
-                    }
-                  } else if (inCaps) {
-                    destination += r.toUpperCase();
-                  } else {
-                    destination += r;
-                  }
-      }
-    }
-    return destination;
-  }
-
 class CapcodeDecoder {
     constructor() {
-      this.inCaps = false;
-      this.charUp = false;
-      this.wordUp = false;
+      this.inWord = false;
+      this.inChar = false;
+      this.delete = false;
+      this.ignore = false;
     }
   
     decode(data) {
@@ -245,37 +144,49 @@ class CapcodeDecoder {
       for (let r of data) {
         switch (r) {
           case characterToken:
-            this.charUp = true;
-            break;
+            this.inChar = true;
+            this.inWord = false;
+            continue;
           case wordToken:
-            this.wordUp = true;
-            break;
-          case beginToken:
-            this.inCaps = true;
-            break;
-          case endToken:
-            this.inCaps = false;
+            this.inWord = true;
+            this.inChar = false;
+            this.ignore = true;
+            continue;
+          case deleteToken:
+            this.delete = true;
+            continue;
+          case ' ':
+            if (this.delete) {
+                this.delete = false;
+            } else {
+                destination += ' ';
+                if (!this.ignore) {
+                    this.inWord = false;
+                }
+            }
             break;
           default:
-            if (this.charUp) {
-              destination += r.toUpperCase();
-              this.charUp = false;
-            } else if (this.wordUp) {
-              if (isLetter(r)) {
+            if (this.delete) {
+                this.delete = false;
+            } else if (this.inChar) {
+                this.inChar = false;
                 destination += r.toUpperCase();
-              } else {
-                if (!(isNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r))) {
-                  this.wordUp = false;
+            } else if (this.inWord) {
+                if (isLower(r) || isUpper(r)) {
+                    destination += r.toUpperCase();
+                } else {
+                    destination += r;
+                    if (!(isNumber(r) || r == apostrophe || r == apostrophe2 || isModifier(r))) {
+                      this.inWord = false;
+                    }
                 }
-                destination += r;
-              }
-            } else if (this.inCaps) {
-              destination += r.toUpperCase();
             } else {
-              destination += r;
+                destination += r;
             }
         }
+        this.ignore = false;
       }
+
       return destination;
     }
-  }
+}
