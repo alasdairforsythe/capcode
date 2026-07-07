@@ -3,6 +3,10 @@
 #include <unicode/uchar.h>
 
 #include <algorithm>
+#include <cstring>
+#if defined(__x86_64__)
+#include <emmintrin.h>
+#endif
 
 namespace capcode {
 namespace {
@@ -14,24 +18,21 @@ struct Rune {
   int size = 0;
 };
 
-Rune decode_utf8(std::span<const std::uint8_t> bytes) {
-  if (bytes.empty()) {
+[[gnu::noinline]] Rune decode_utf8_slow(const std::uint8_t* bytes, std::size_t len) {
+  if (len == 0) {
     return {RuneError, 0};
   }
   const auto b0 = bytes[0];
-  if (b0 < 0x80) {
-    return {b0, 1};
-  }
   auto invalid = Rune{RuneError, 1};
   if (b0 < 0xC2) {
     return invalid;
   }
   if (b0 < 0xE0) {
-    if (bytes.size() < 2 || (bytes[1] & 0xC0) != 0x80) return invalid;
+    if (len < 2 || (bytes[1] & 0xC0) != 0x80) return invalid;
     return {static_cast<char32_t>(((b0 & 0x1F) << 6) | (bytes[1] & 0x3F)), 2};
   }
   if (b0 < 0xF0) {
-    if (bytes.size() < 3 || (bytes[1] & 0xC0) != 0x80 || (bytes[2] & 0xC0) != 0x80) {
+    if (len < 3 || (bytes[1] & 0xC0) != 0x80 || (bytes[2] & 0xC0) != 0x80) {
       return invalid;
     }
     if (b0 == 0xE0 && bytes[1] < 0xA0) return invalid;
@@ -41,7 +42,7 @@ Rune decode_utf8(std::span<const std::uint8_t> bytes) {
             3};
   }
   if (b0 < 0xF5) {
-    if (bytes.size() < 4 || (bytes[1] & 0xC0) != 0x80 || (bytes[2] & 0xC0) != 0x80 ||
+    if (len < 4 || (bytes[1] & 0xC0) != 0x80 || (bytes[2] & 0xC0) != 0x80 ||
         (bytes[3] & 0xC0) != 0x80) {
       return invalid;
     }
@@ -52,6 +53,11 @@ Rune decode_utf8(std::span<const std::uint8_t> bytes) {
             4};
   }
   return invalid;
+}
+
+[[gnu::always_inline]] inline Rune decode_utf8(const std::uint8_t* p, std::size_t len) {
+  if (len != 0 && p[0] < 0x80) return {p[0], 1};
+  return decode_utf8_slow(p, len);
 }
 
 bool is_modifier(char32_t r) {
@@ -115,8 +121,8 @@ int write_utf8_at(Bytes& buf, std::size_t pos, char32_t r) {
   return 4;
 }
 
-void copy_original_at(Bytes& buf, std::size_t& pos, std::span<const std::uint8_t> data,
-                      std::size_t i, int n) {
+[[gnu::always_inline]] inline void copy_original_at(Bytes& buf, std::size_t& pos,
+                      std::span<const std::uint8_t> data, std::size_t i, int n) {
   switch (n) {
     case 1:
       buf[pos] = data[i];
@@ -143,6 +149,74 @@ void copy_original_at(Bytes& buf, std::size_t& pos, std::span<const std::uint8_t
   }
 }
 
+// Candidate #7: length of the leading run of ASCII lowercase [a-z] bytes.
+// SSE2 scans 16 bytes at a time; scalar tail/fallback otherwise. Signed epi8
+// compares work because [a-z] = 0x61..0x7A are positive and every other byte
+// (digits, punctuation, high UTF-8 bytes) falls outside the range.
+[[gnu::always_inline]] inline std::size_t ascii_lower_run(const std::uint8_t* p,
+                                                          std::size_t len) {
+  std::size_t k = 0;
+#if defined(__x86_64__)
+  const __m128i lo = _mm_set1_epi8(static_cast<char>('a' - 1));
+  const __m128i hi = _mm_set1_epi8(static_cast<char>('z' + 1));
+  for (; k + 16 <= len; k += 16) {
+    __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p + k));
+    __m128i in = _mm_and_si128(_mm_cmpgt_epi8(v, lo), _mm_cmpgt_epi8(hi, v));
+    unsigned m = static_cast<unsigned>(_mm_movemask_epi8(in));
+    if (m != 0xFFFFu) return k + static_cast<std::size_t>(__builtin_ctz(~m));
+  }
+#endif
+  while (k < len && p[k] >= 'a' && p[k] <= 'z') ++k;
+  return k;
+}
+
+// Candidate #8: length of the leading run of ASCII letters [A-Za-z].
+[[gnu::always_inline]] inline std::size_t ascii_letter_run(const std::uint8_t* p,
+                                                           std::size_t len) {
+  std::size_t k = 0;
+#if defined(__x86_64__)
+  const __m128i fold = _mm_set1_epi8(0x20);
+  const __m128i lo = _mm_set1_epi8(static_cast<char>(0x60));
+  const __m128i hi = _mm_set1_epi8(static_cast<char>(0x7B));
+  for (; k + 16 <= len; k += 16) {
+    __m128i v = _mm_or_si128(_mm_loadu_si128(reinterpret_cast<const __m128i*>(p + k)), fold);
+    __m128i in = _mm_and_si128(_mm_cmpgt_epi8(v, lo), _mm_cmpgt_epi8(hi, v));
+    unsigned m = static_cast<unsigned>(_mm_movemask_epi8(in));
+    if (m != 0xFFFFu) return k + static_cast<std::size_t>(__builtin_ctz(~m));
+  }
+#endif
+  while (k < len) { std::uint8_t c = p[k] | 0x20; if (c < 0x61 || c > 0x7A) break; ++k; }
+  return k;
+}
+
+// Candidate #9: length of the leading run of decode "normal" bytes -- bytes that
+// are none of the single-byte tokens C/W/D/space. Token bytes are ASCII (<0x80),
+// so they never occur inside a multibyte sequence; a run of non-token bytes in
+// the decoder's base state is copied verbatim.
+[[gnu::always_inline]] inline std::size_t decode_normal_run(const std::uint8_t* p,
+                                                            std::size_t len) {
+  std::size_t k = 0;
+#if defined(__x86_64__)
+  const __m128i tC = _mm_set1_epi8(static_cast<char>(CharacterToken));
+  const __m128i tW = _mm_set1_epi8(static_cast<char>(WordToken));
+  const __m128i tD = _mm_set1_epi8(static_cast<char>(DeleteToken));
+  const __m128i sp = _mm_set1_epi8(' ');
+  for (; k + 16 <= len; k += 16) {
+    __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(p + k));
+    __m128i tok = _mm_or_si128(_mm_or_si128(_mm_cmpeq_epi8(v, tC), _mm_cmpeq_epi8(v, tW)),
+                               _mm_or_si128(_mm_cmpeq_epi8(v, tD), _mm_cmpeq_epi8(v, sp)));
+    unsigned m = static_cast<unsigned>(_mm_movemask_epi8(tok));
+    if (m != 0) return k + static_cast<std::size_t>(__builtin_ctz(m));
+  }
+#endif
+  while (k < len) {
+    std::uint8_t c = p[k];
+    if (c == CharacterToken || c == WordToken || c == DeleteToken || c == ' ') break;
+    ++k;
+  }
+  return k;
+}
+
 }  // namespace
 
 Bytes encode(std::span<const std::uint8_t> data) {
@@ -159,7 +233,7 @@ Bytes encode(std::span<const std::uint8_t> data) {
   std::size_t danger_zone = buf.size() - bufferReserve;
 
   while (i < data.size()) {
-    auto dec = decode_utf8(data.subspan(i));
+    auto dec = decode_utf8(data.data() + i, data.size() - i);
     r = dec.value;
     n = dec.size <= 0 ? 1 : dec.size;
 
@@ -186,7 +260,7 @@ Bytes encode(std::span<const std::uint8_t> data) {
             for (i2 = static_cast<std::size_t>(n2); i2 < pos;
                  i2 += static_cast<std::size_t>(n2)) {
               if (buf[i2] == DeleteToken && buf[i2 + 1] == ' ') {
-                auto r2d = decode_utf8(std::span<const std::uint8_t>(buf).subspan(i2 + 2));
+                auto r2d = decode_utf8(buf.data() + i2 + 2, buf.size() - (i2 + 2));
                 r2 = r2d.value;
                 n2 = r2d.size <= 0 ? 1 : r2d.size;
                 if (is_lower(r2)) {
@@ -205,7 +279,7 @@ Bytes encode(std::span<const std::uint8_t> data) {
                 }
                 i2 += 2;
               } else {
-                auto r2d = decode_utf8(std::span<const std::uint8_t>(buf).subspan(i2));
+                auto r2d = decode_utf8(buf.data() + i2, buf.size() - i2);
                 r2 = r2d.value;
                 n2 = r2d.size <= 0 ? 1 : r2d.size;
                 if (is_lower(r2)) {
@@ -254,6 +328,26 @@ Bytes encode(std::span<const std::uint8_t> data) {
           pos += 2;
         }
         copy_original_at(buf, pos, data, i, n);
+        // Candidate #7: r is a lowercase ASCII letter (n == 1). Any immediately
+        // following lowercase-ASCII run is preceded by a lowercase letter, so it
+        // needs no token and is a verbatim copy -- bulk-copy it in one memcpy.
+        // Only reached from the lowercase branch, so non-lowercase/Unicode chars
+        // pay nothing.
+        if (n == 1) {
+          std::size_t run = ascii_lower_run(data.data() + i + 1, data.size() - (i + 1));
+          if (run != 0) {
+            if (pos + run + bufferReserve > buf.size()) {
+              buf.resize(pos + run + buf.size() / 3 + bufferReserve);
+              danger_zone = buf.size() - bufferReserve;
+            }
+            std::memcpy(buf.data() + pos, data.data() + i + 1, run);
+            pos += run;
+            rlast2 = static_cast<char32_t>(data[i + run - 1]);
+            rlast = static_cast<char32_t>(data[i + run]);
+            i += run + 1;
+            continue;
+          }
+        }
       } else if (is_upper(r)) {
         if (rlast == ' ') {
           word_token_pos = pos - 1;
@@ -299,7 +393,7 @@ Bytes decode(Bytes b) {
   bool delete_next = false;
   bool ignore = false;
   for (std::size_t i = 0; i < b.size();) {
-    auto dec = decode_utf8(std::span<const std::uint8_t>(b).subspan(i));
+    auto dec = decode_utf8(b.data() + i, b.size() - i);
     r = dec.value;
     int n = dec.size <= 0 ? 1 : dec.size;
     switch (r) {
@@ -348,6 +442,19 @@ Bytes decode(Bytes b) {
           }
         } else {
           copy_original_at(b, pos, b, i, n);
+          // Candidate #9: r is an ASCII non-token byte in the base state; bulk
+          // copy the following run of non-token bytes (state stays base). The
+          // in-place move handles the compacted dst <= src overlap.
+          if (n == 1) {
+            std::size_t run = decode_normal_run(b.data() + i + 1, b.size() - (i + 1));
+            if (run != 0) {
+              std::memmove(b.data() + pos, b.data() + i + 1, run);
+              pos += run;
+              ignore = false;
+              i += run + 1;
+              continue;
+            }
+          }
         }
         break;
     }
@@ -366,7 +473,7 @@ Bytes no_capcode_encode(std::span<const std::uint8_t> data) {
   Bytes buf(data.size() + (data.size() / 2) + bufferReserve);
   std::size_t danger_zone = buf.size() - bufferReserve;
   for (std::size_t i = 0; i < data.size();) {
-    auto dec = decode_utf8(data.subspan(i));
+    auto dec = decode_utf8(data.data() + i, data.size() - i);
     r = dec.value;
     int n = dec.size <= 0 ? 1 : dec.size;
     if (pos >= danger_zone) {
@@ -380,6 +487,26 @@ Bytes no_capcode_encode(std::span<const std::uint8_t> data) {
         buf[pos] = NoCapcodeDeleteToken;
         buf[pos + 1] = ' ';
         pos += 2;
+      }
+      // Candidate #8: r is an ASCII letter -> bulk-copy the following ASCII
+      // letter run (all preceded by a letter, so token-free) and skip ahead.
+      // Non-run letters (incl. every multibyte/Unicode letter) fall through to
+      // the shared copy below, paying only a predicted n==1 check.
+      if (n == 1) {
+        std::size_t run = ascii_letter_run(data.data() + i + 1, data.size() - (i + 1));
+        if (run != 0) {
+          copy_original_at(buf, pos, data, i, n);
+          if (pos + run + bufferReserve > buf.size()) {
+            buf.resize(pos + run + buf.size() / 3 + bufferReserve);
+            danger_zone = buf.size() - bufferReserve;
+          }
+          std::memcpy(buf.data() + pos, data.data() + i + 1, run);
+          pos += run;
+          rlast2 = static_cast<char32_t>(data[i + run - 1]);
+          rlast = static_cast<char32_t>(data[i + run]);
+          i += run + 1;
+          continue;
+        }
       }
     } else if (is_number(r)) {
       if (!(rlast == ' ' || is_number(rlast))) {
@@ -424,7 +551,7 @@ Bytes Decoder::decode(std::span<const std::uint8_t> src) {
   Bytes dst(src.size() + bufferReserve);
   std::size_t pos = 0;
   for (std::size_t i = 0; i < src.size();) {
-    auto dec = decode_utf8(src.subspan(i));
+    auto dec = decode_utf8(src.data() + i, src.size() - i);
     auto r = dec.value;
     int n = dec.size <= 0 ? 1 : dec.size;
     switch (r) {
